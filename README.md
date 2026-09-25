@@ -1,21 +1,37 @@
-# 1AM dApp
+# Night Atlas
 
-A minimal, runnable browser dApp built on the **1AM wallet stack** for the [Midnight](https://midnight.network) ecosystem.
+A Midnight observatory built on the **1AM wallet stack**. Night Atlas turns a connected wallet into a deterministic constellation: the address seeds the map, balances shape the central star, and each submitted NIGHT transfer becomes a temporary signal.
 
 > Original assignment: **Build a dApp using the 1AM stack. The project should be structured so that another developer can read, run, or extend it.**
 
-This repository is intentionally scoped as a builder handoff. It demonstrates the wallet integration end to end and documents the implementation details needed to extend it into a richer Midnight application.
+This repository is intentionally structured as a builder handoff. It demonstrates a complete wallet flow and a distinctive visual concept that can be extended with indexer data, Compact contracts, or richer identity mechanics.
+
+## Concept
+
+Night Atlas treats wallet activity as a personal sky map:
+
+- The unshielded address becomes a stable constellation seed.
+- The native NIGHT balance influences the central anchor star.
+- Additional token entries add mapped stars.
+- DUST is reported as an observability/fuel metric.
+- Transfers are branded as **signals** and appear as pulsing stars for the current session.
+- The address is visually shortened in the UI; the full value remains available only inside the local wallet state.
+
+The current constellation is illustrative. It is deterministic and wallet-derived, but it is not a cryptographic proof, anonymity system, or canonical on-chain identity.
 
 ## Current status
 
 - [x] Detects an injected Midnight wallet through `window.midnight`
 - [x] Connects to the 1AM wallet on a configurable network
-- [x] Displays the wallet network, unshielded address, unshielded NIGHT balance, and DUST balance
-- [x] Disconnects the local UI state
-- [x] Builds and submits an unshielded NIGHT transfer through the wallet API
+- [x] Displays a deterministic atlas identity and masked unshielded address
+- [x] Displays unshielded NIGHT and DUST balance information
+- [x] Generates an SVG constellation from local wallet state
+- [x] Builds and submits an unshielded NIGHT transfer as a signal
+- [x] Adds submitted transaction references to the current atlas session
 - [x] Includes the Vite/WASM configuration required by Midnight ledger packages
+- [ ] Does not currently load historical transactions from the indexer
 - [ ] Does not currently call a Compact contract
-- [ ] Does not currently include indexer-backed reads
+- [ ] Does not currently persist signals after reload
 - [ ] Does not currently include automated tests
 
 ## Stack
@@ -25,6 +41,7 @@ This repository is intentionally scoped as a builder handoff. It demonstrates th
 - [`@midnight-ntwrk/dapp-connector-api`](https://www.npmjs.com/package/@midnight-ntwrk/dapp-connector-api)
 - [`@midnight-ntwrk/ledger-v8`](https://www.npmjs.com/package/@midnight-ntwrk/ledger-v8)
 - `vite-plugin-wasm` and `vite-plugin-top-level-await` for Midnight WASM compatibility
+- `lucide-react` for UI icons
 
 ## Prerequisites
 
@@ -33,7 +50,7 @@ This repository is intentionally scoped as a builder handoff. It demonstrates th
 - A Chromium-based browser
 - The [1AM browser wallet extension](https://1am.xyz/)
 - A wallet configured for `preprod` or another supported Midnight network
-- Test NIGHT funds if you want to submit a transfer
+- Test NIGHT funds if you want to submit a signal
 
 The wallet connection is browser-only. Server-side rendering, automated tests, or a headless terminal cannot provide `window.midnight`.
 
@@ -73,12 +90,14 @@ npm run lint     # Run TypeScript's no-emit check
 src/
   main.tsx                    React entry point
   App.tsx                     Application state and page composition
-  index.css                   Tailwind entry styles
+  index.css                   Global Midnight/Night Atlas styling
   lib/
     wallet.ts                 1AM connector and transaction helpers
+    atlas.ts                  Deterministic constellation model
   components/
-    WalletCard.tsx            Wallet status and connect/disconnect UI
-    TransferForm.tsx          Unshielded NIGHT transfer form
+    AtlasMap.tsx              SVG atlas, balance metrics, and signal display
+    WalletCard.tsx            Wallet uplink, identity, and balance UI
+    TransferForm.tsx          NIGHT signal broadcast form
 vite.config.ts               React, WASM, and Midnight dependency configuration
 .env.example                 Browser-visible environment template
 ```
@@ -87,12 +106,12 @@ vite.config.ts               React, WASM, and Midnight dependency configuration
 
 ```text
 React components
-      |
-      v
-src/lib/wallet.ts
-      |
-      v
-window.midnight injected provider
+      |                    \
+      v                     v
+src/lib/wallet.ts      src/lib/atlas.ts
+      |                     |
+      v                     v
+window.midnight         local UI model
       |
       v
 1AM browser extension
@@ -101,9 +120,22 @@ window.midnight injected provider
 Midnight network
 ```
 
-The React layer owns UI state only. Wallet detection, connection, balance loading, transaction construction, and transaction submission are isolated in `src/lib/wallet.ts` so they can be replaced or extended without rewriting the components.
+The React layer owns UI state only. Wallet detection, connection, balance loading, transaction construction, and transaction submission are isolated in `src/lib/wallet.ts`. The visual model is isolated in `src/lib/atlas.ts`, so the atlas can be tested or replaced without changing wallet code.
 
-### Wallet connection flow
+## How the atlas is generated
+
+`buildAtlas()` in `src/lib/atlas.ts`:
+
+1. Uses the unshielded address, or a standby seed when disconnected, as deterministic input.
+2. Converts that input into a 32-bit FNV-style hash.
+3. Uses a seeded `mulberry32`-style generator for reproducible coordinates.
+4. Creates a backdrop field, wallet-derived stars, and optional signal stars.
+5. Connects stars into a constellation with lightweight SVG lines.
+6. Returns a callsign such as `VELA-9F3A` derived from the same seed.
+
+The NIGHT balance increases the central star radius. The number of token entries increases the constellation density. Successful transfers append references to the `signals` array and appear as pulsing signal nodes.
+
+## Wallet connection flow
 
 `connectWallet()` in `src/lib/wallet.ts`:
 
@@ -111,13 +143,9 @@ The React layer owns UI state only. Wallet detection, connection, balance loadin
 2. Prefers `window.midnight['1am']`, falling back to the first injected wallet provider.
 3. Calls `wallet.connect(network)`.
 4. Loads wallet configuration, unshielded address, unshielded balances, DUST balance, and connection status in parallel.
-5. Returns a serializable `WalletState` plus the connected API object used for future wallet calls.
+5. Returns a `WalletState` plus the connected API object used for future wallet calls.
 
-### Balance loading
-
-`loadBalances()` refreshes the unshielded token map and DUST balance without reconnecting the wallet. `nativeNightBalance()` extracts the native-token balance for display.
-
-### Transfer flow
+## Signal transfer flow
 
 `sendUnshieldedTransfer()`:
 
@@ -125,6 +153,7 @@ The React layer owns UI state only. Wallet detection, connection, balance loadin
 2. Calls `api.makeTransfer()` with an unshielded native-token output.
 3. Calls `api.submitTransaction(tx)` so the wallet can sign and submit it.
 4. Returns the first 64 characters of the serialized transaction as a UI reference.
+5. `App.tsx` prepends that reference to the session-local `signals` array.
 
 The displayed transaction reference is not guaranteed to be a canonical explorer transaction hash. Treat it as a demo reference unless the wallet API is checked for a dedicated transaction-id field.
 
@@ -143,39 +172,38 @@ Keep these settings when upgrading Vite or Midnight dependencies. Removing them 
 
 ## Manual verification checklist
 
-Use this checklist after changing wallet or transaction code:
+Use this checklist after changing wallet, atlas, or transaction code:
 
 1. Run `npm run lint`.
 2. Run `npm run build`.
 3. Run `npm run dev`.
 4. Open `http://localhost:5173` in a Chromium browser with 1AM installed.
-5. Confirm the wallet connects and displays the expected network and address.
-6. Confirm unshielded NIGHT and DUST balances render without `NaN` or blank values.
-7. Submit a small self-transfer on a test network.
-8. Confirm the success message appears and balances refresh.
-9. Confirm disconnect returns the UI to the disconnected state.
+5. Confirm the disconnected atlas renders with a standby callsign and overlay.
+6. Connect the wallet and confirm the callsign, masked address, network, and balances appear.
+7. Submit a small self-signal on a test network.
+8. Confirm a pulsing signal star appears and balances refresh.
+9. Disconnect and confirm the atlas returns to standby and signals clear.
 10. Open the browser console and confirm there are no WASM or top-level-await errors.
 
 ## Extension guide
 
-### Add a new wallet action
+### Add real transaction history
 
-1. Add a typed helper to `src/lib/wallet.ts`.
-2. Accept the existing `ConnectedAPI` instead of reconnecting.
-3. Return plain data to the component layer.
-4. Add or update a component under `src/components/`.
-5. Pass callbacks through `src/App.tsx` rather than putting wallet API calls directly in presentational components.
+Use `@midnight-ntwrk/midnight-js-indexer-public-data-provider` to replace the session-local `signals` array with indexed transactions for the connected address. The reserved `VITE_MIDNIGHT_API_KEY` variable can hold a provider credential if the selected endpoint requires one.
 
-### Add indexer-backed reads
+Good first additions:
 
-Use Midnight's public-data provider package and the reserved `VITE_MIDNIGHT_API_KEY` variable. Good first use cases include:
-
-- Transaction history for the connected address
-- Indexed contract state
+- Confirmed signal history
+- Canonical transaction IDs and statuses
 - Token metadata
-- A canonical transaction confirmation/status lookup
+- Address activity timeline
+- Persistent constellation nodes based on historical transactions
 
-Keep provider creation in `src/lib/` so the UI remains independent of the data-source implementation.
+Keep provider setup in `src/lib/` so React components do not depend on a specific indexer implementation.
+
+### Persist the atlas
+
+Store the callsign and submitted signal references in `localStorage` keyed by a non-sensitive wallet identifier. Do not store seed phrases, private keys, or complete address data unless the product explicitly requires it.
 
 ### Add a Compact contract
 
@@ -185,21 +213,36 @@ Suggested structure:
 src/
   contracts/                  Contract addresses, types, and generated artifacts
   lib/
+    atlas.ts                  Existing visual model
     contract.ts               Contract connection and circuit calls
     wallet.ts                 Existing 1AM wallet helpers
   components/
+    AtlasMap.tsx              Existing constellation
     ContractPanel.tsx         Feature-specific UI
 ```
 
-Use `@midnight-ntwrk/midnight-js-contracts` for deployment/interaction patterns and keep contract-specific state separate from wallet connection state.
+Use `@midnight-ntwrk/midnight-js-contracts` for contract interaction patterns. Possible contract-backed features include public beacon registration, sealed signals, private attestations, or commit/reveal events.
 
-### Add an atomic intent or swap
+### Add a shareable atlas card
 
-The current transfer uses `makeTransfer`. For multi-step or atomic flows, inspect `ConnectedAPI.makeIntent` and build a separate helper rather than overloading `sendUnshieldedTransfer`.
+Render the current constellation to a standalone SVG or canvas export. A share card should contain the callsign and visual map, not the full unshielded address.
+
+### Add automated tests
+
+The atlas model is deterministic and can be tested without a wallet. Good first tests:
+
+- Same address produces the same callsign and star coordinates.
+- Different addresses produce different models.
+- Signals are capped and ordered correctly.
+- Empty wallet state produces the standby map.
+
+Mock `ConnectedAPI` separately for wallet helper tests.
 
 ## Known limitations
 
-- The app is a wallet/transfer starter, not a complete private-voting application.
+- Night Atlas currently uses wallet-provided unshielded state; it is not a private identity or zero-knowledge proof system.
+- Signals are session-local and disappear on reload or disconnect.
+- Transaction history is not indexed yet.
 - There is no backend, persistence layer, routing, or multi-page state.
 - Wallet disconnect clears local React state; it does not revoke permissions inside the extension.
 - Address input is checked only for a non-empty string.
@@ -226,15 +269,16 @@ Check `VITE_1AM_NETWORK` in `.env` and restart the dev server after editing it.
 
 Confirm `vite.config.ts` still contains the WASM plugins and the Midnight `dedupe`/`optimizeDeps` settings.
 
-### Transaction fails in the wallet
+### A signal does not appear
 
-Check the wallet network, recipient format, available NIGHT balance, and DUST/fee balance. Use a small self-transfer first.
+Check whether `sendUnshieldedTransfer()` completed successfully. Only successful submissions are appended to the session `signals` array.
 
 ## Definition of done for future changes
 
 A pull request or handoff commit should:
 
 - Keep all wallet access behind `src/lib/wallet.ts` or a similarly isolated module
+- Keep deterministic visual logic in `src/lib/atlas.ts` or a similarly isolated model
 - Preserve the Midnight WASM Vite configuration
 - Document any new environment variables in `.env.example` and this README
 - Run `npm run lint` and `npm run build`

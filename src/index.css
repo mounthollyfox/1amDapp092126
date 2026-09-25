@@ -4,6 +4,14 @@
 
 body {
   @apply bg-slate-950 text-slate-100 antialiased;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(79, 70, 229, 0.22), transparent 32rem),
+    radial-gradient(circle at 90% 20%, rgba(217, 70, 239, 0.12), transparent 28rem),
+    #020617;
+}
+
+#root {
+  min-height: 100vh;
 }
 
 input {

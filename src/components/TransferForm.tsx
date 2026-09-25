@@ -55,15 +55,15 @@ export const TransferForm = ({
       onSubmit={handleSubmit}
       className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 shadow-xl"
     >
-      <h2 className="text-lg font-semibold text-white">Transfer NIGHT</h2>
+      <h2 className="text-lg font-semibold text-white">Broadcast a signal</h2>
       <p className="text-sm text-slate-400">
-        Send an unshielded NIGHT transfer through 1AM. The wallet handles fees.
+        Send an unshielded NIGHT transfer through 1AM and mark it on the atlas.
       </p>
 
       <div className="mt-4 space-y-4">
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-400">
-            Recipient
+            Receiver beacon
           </label>
           <input
             type="text"
@@ -78,14 +78,14 @@ export const TransferForm = ({
               onClick={() => setRecipient(defaultAddress)}
               className="mt-2 text-xs text-indigo-400 hover:text-indigo-300"
             >
-              Use my address (self-transfer)
+              Use my beacon (self-signal)
             </button>
           )}
         </div>
 
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-400">
-            Amount (NIGHT)
+            Signal weight (NIGHT)
           </label>
           <input
             type="number"
@@ -107,7 +107,7 @@ export const TransferForm = ({
           <Loader2 className="h-4 w-4 animate-spin" />
         ) : (
           <>
-            <Send className="h-4 w-4" /> Send
+            <Send className="h-4 w-4" /> Broadcast signal
           </>
         )}
       </button>
