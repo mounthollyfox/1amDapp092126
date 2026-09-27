@@ -1,12 +1,16 @@
 import type { ConnectedAPI, InitialAPI } from '@midnight-ntwrk/dapp-connector-api';
-import { nativeToken } from '@midnight-ntwrk/ledger-v8';
+import { nativeToken, shieldedToken } from '@midnight-ntwrk/ledger-v8';
+
+export type TransferKind = 'unshielded' | 'shielded';
 
 export interface WalletState {
   connected: boolean;
   api: ConnectedAPI | null;
   unshieldedAddress: string;
+  shieldedAddress: string;
   networkId: string;
   unshieldedBalances: Record<string, bigint>;
+  shieldedBalances: Record<string, bigint>;
   dust: { cap: bigint; balance: bigint } | null;
 }
 
@@ -39,12 +43,19 @@ export const connectWallet = async (
     config,
     { unshieldedAddress },
     unshieldedBalances,
+    shieldedBalances,
+    shieldedAddress,
     dust,
     connectionStatus,
   ] = await Promise.all([
     api.getConfiguration(),
     api.getUnshieldedAddress(),
     api.getUnshieldedBalances(),
+    api.getShieldedBalances().catch(() => ({})),
+    api
+      .getShieldedAddresses()
+      .then((addresses) => addresses.shieldedAddress)
+      .catch(() => ''),
     api.getDustBalance().catch(() => null),
     api.getConnectionStatus(),
   ]);
@@ -59,33 +70,40 @@ export const connectWallet = async (
     connected: true,
     api,
     unshieldedAddress,
+    shieldedAddress,
     networkId: config.networkId,
     unshieldedBalances,
+    shieldedBalances,
     dust,
   };
 };
 
 export const loadBalances = async (
   api: ConnectedAPI,
-): Promise<Pick<WalletState, 'unshieldedBalances' | 'dust'>> => {
-  const [unshieldedBalances, dust] = await Promise.all([
+): Promise<
+  Pick<WalletState, 'unshieldedBalances' | 'shieldedBalances' | 'dust'>
+> => {
+  const [unshieldedBalances, shieldedBalances, dust] = await Promise.all([
     api.getUnshieldedBalances(),
+    api.getShieldedBalances().catch(() => ({})),
     api.getDustBalance().catch(() => null),
   ]);
-  return { unshieldedBalances, dust };
+  return { unshieldedBalances, shieldedBalances, dust };
 };
 
-export const sendUnshieldedTransfer = async (
+export const sendTransfer = async (
   api: ConnectedAPI,
   recipient: string,
   amountNight: number,
+  kind: TransferKind,
 ): Promise<string> => {
   const value = BigInt(Math.round(amountNight * 1_000_000));
+  const type = kind === 'shielded' ? shieldedToken().raw : nativeToken().raw;
 
   const { tx } = await api.makeTransfer([
     {
-      kind: 'unshielded',
-      type: nativeToken().raw,
+      kind,
+      type,
       value,
       recipient,
     },
@@ -94,6 +112,12 @@ export const sendUnshieldedTransfer = async (
   await api.submitTransaction(tx);
   return tx.slice(0, 64);
 };
+
+export const sendUnshieldedTransfer = async (
+  api: ConnectedAPI,
+  recipient: string,
+  amountNight: number,
+): Promise<string> => sendTransfer(api, recipient, amountNight, 'unshielded');
 
 export const formatNight = (raw: bigint | undefined): string => {
   if (raw === undefined) return '0.000000';
@@ -104,4 +128,10 @@ export const nativeNightBalance = (
   balances: Record<string, bigint>,
 ): bigint => {
   return balances[NATIVE_TOKEN_ID] ?? 0n;
+};
+
+export const shieldedNightBalance = (
+  balances: Record<string, bigint>,
+): bigint => {
+  return balances[shieldedToken().raw] ?? 0n;
 };

@@ -1,6 +1,6 @@
 # Night Atlas
 
-A Midnight observatory built on the **1AM wallet stack**. Night Atlas turns a connected wallet into a deterministic constellation: the address seeds the map, balances shape the central star, and each submitted NIGHT transfer becomes a temporary signal.
+A Midnight observatory built on the **1AM wallet stack**. Night Atlas turns a connected wallet into a deterministic constellation: the address seeds the map, balances shape the central star, and each public or shielded NIGHT transfer becomes a temporary signal.
 
 > Original assignment: **Build a dApp using the 1AM stack. The project should be structured so that another developer can read, run, or extend it.**
 
@@ -11,11 +11,11 @@ This repository is intentionally structured as a builder handoff. It demonstrate
 Night Atlas treats wallet activity as a personal sky map:
 
 - The unshielded address becomes a stable constellation seed.
-- The native NIGHT balance influences the central anchor star.
+- Public and shielded NIGHT balances are displayed separately.
 - Additional token entries add mapped stars.
 - DUST is reported as an observability/fuel metric.
-- Transfers are branded as **signals** and appear as pulsing stars for the current session.
-- The address is visually shortened in the UI; the full value remains available only inside the local wallet state.
+- Public transfers appear as magenta signals; shielded transfers appear as teal signals.
+- The addresses are visually shortened in the UI; the full values remain available only inside the local wallet state.
 
 The current constellation is illustrative. It is deterministic and wallet-derived, but it is not a cryptographic proof, anonymity system, or canonical on-chain identity.
 
@@ -23,10 +23,10 @@ The current constellation is illustrative. It is deterministic and wallet-derive
 
 - [x] Detects an injected Midnight wallet through `window.midnight`
 - [x] Connects to the 1AM wallet on a configurable network
-- [x] Displays a deterministic atlas identity and masked unshielded address
-- [x] Displays unshielded NIGHT and DUST balance information
+- [x] Displays a deterministic atlas identity and masked public/private beacons
+- [x] Displays public NIGHT, shielded NIGHT, and DUST balance information
 - [x] Generates an SVG constellation from local wallet state
-- [x] Builds and submits an unshielded NIGHT transfer as a signal
+- [x] Builds and submits public or shielded NIGHT transfers as signals
 - [x] Adds submitted transaction references to the current atlas session
 - [x] Includes the Vite/WASM configuration required by Midnight ledger packages
 - [ ] Does not currently load historical transactions from the indexer
@@ -142,18 +142,23 @@ The NIGHT balance increases the central star radius. The number of token entries
 1. Reads the injected `window.midnight` object.
 2. Prefers `window.midnight['1am']`, falling back to the first injected wallet provider.
 3. Calls `wallet.connect(network)`.
-4. Loads wallet configuration, unshielded address, unshielded balances, DUST balance, and connection status in parallel.
+4. Loads wallet configuration, unshielded address, shielded address, unshielded balances, shielded balances, DUST balance, and connection status in parallel.
 5. Returns a `WalletState` plus the connected API object used for future wallet calls.
 
 ## Signal transfer flow
 
-`sendUnshieldedTransfer()`:
+`sendTransfer()` accepts `kind: 'unshielded' | 'shielded'`:
 
 1. Converts a decimal NIGHT amount into base units using `1 NIGHT = 1_000_000` units.
-2. Calls `api.makeTransfer()` with an unshielded native-token output.
-3. Calls `api.submitTransaction(tx)` so the wallet can sign and submit it.
-4. Returns the first 64 characters of the serialized transaction as a UI reference.
-5. `App.tsx` prepends that reference to the session-local `signals` array.
+2. Selects `nativeToken().raw` for public signals or `shieldedToken().raw` for private signals.
+3. Calls `api.makeTransfer()` with the requested output kind and recipient.
+4. Calls `api.submitTransaction(tx)` so the wallet can sign, prove, and submit it.
+5. Returns the first 64 characters of the serialized transaction as a UI reference.
+6. `App.tsx` prepends that reference and signal kind to the session-local `signals` array.
+
+Public mode sends an unshielded transfer whose transaction data is visible. Private mode requests a shielded transfer, which uses zero-knowledge proofs and may take longer in the wallet. Shielded recipients must use the correct Bech32m shielded address for the connected network.
+
+For usability, the form recognizes `mn_addr` and `mn_shield-addr` prefixes and switches modes automatically when a matching address is pasted. This catches obvious mode mismatches early; checksum and network validation remain the wallet's responsibility.
 
 The displayed transaction reference is not guaranteed to be a canonical explorer transaction hash. Treat it as a demo reference unless the wallet API is checked for a dedicated transaction-id field.
 
@@ -179,11 +184,12 @@ Use this checklist after changing wallet, atlas, or transaction code:
 3. Run `npm run dev`.
 4. Open `http://localhost:5173` in a Chromium browser with 1AM installed.
 5. Confirm the disconnected atlas renders with a standby callsign and overlay.
-6. Connect the wallet and confirm the callsign, masked address, network, and balances appear.
-7. Submit a small self-signal on a test network.
-8. Confirm a pulsing signal star appears and balances refresh.
-9. Disconnect and confirm the atlas returns to standby and signals clear.
-10. Open the browser console and confirm there are no WASM or top-level-await errors.
+6. Connect the wallet and confirm the callsign, masked public/private beacons, network, and balances appear.
+7. Submit a small public self-signal on a test network.
+8. Paste a `mn_shield-addr` recipient and confirm the form switches to private mode. If the wallet has shielded NIGHT, submit a small private signal.
+9. Confirm public signals appear magenta, shielded signals appear teal, and balances refresh.
+10. Disconnect and confirm the atlas returns to standby and signals clear.
+11. Open the browser console and confirm there are no WASM or top-level-await errors.
 
 ## Extension guide
 
@@ -240,12 +246,12 @@ Mock `ConnectedAPI` separately for wallet helper tests.
 
 ## Known limitations
 
-- Night Atlas currently uses wallet-provided unshielded state; it is not a private identity or zero-knowledge proof system.
+- Night Atlas surfaces wallet-provided public and shielded state, but the constellation itself is only a visualization—not a private identity or zero-knowledge proof system.
 - Signals are session-local and disappear on reload or disconnect.
 - Transaction history is not indexed yet.
 - There is no backend, persistence layer, routing, or multi-page state.
 - Wallet disconnect clears local React state; it does not revoke permissions inside the extension.
-- Address input is checked only for a non-empty string.
+- Address input checks only the public/private prefix; checksum and network validation remain delegated to the wallet.
 - Amount parsing uses `parseFloat`; production code should use decimal-safe parsing to avoid floating-point precision issues.
 - The transfer result displayed to the user is derived from the serialized transaction payload, not a dedicated transaction hash API.
 - `VITE_MIDNIGHT_API_KEY` is currently a placeholder until an indexer or hosted data provider is added.
@@ -271,7 +277,7 @@ Confirm `vite.config.ts` still contains the WASM plugins and the Midnight `dedup
 
 ### A signal does not appear
 
-Check whether `sendUnshieldedTransfer()` completed successfully. Only successful submissions are appended to the session `signals` array.
+Check whether `sendTransfer()` completed successfully. Only successful submissions are appended to the session `signals` array.
 
 ## Definition of done for future changes
 

@@ -2,14 +2,17 @@ import { useCallback, useState } from 'react';
 import { AtlasMap } from './components/AtlasMap';
 import { WalletCard } from './components/WalletCard';
 import { TransferForm } from './components/TransferForm';
+import type { AtlasSignal } from './lib/atlas';
 import { connectWallet, loadBalances, type WalletState } from './lib/wallet';
 
 const initialWallet: WalletState = {
   connected: false,
   api: null,
   unshieldedAddress: '',
+  shieldedAddress: '',
   networkId: '',
   unshieldedBalances: {},
+  shieldedBalances: {},
   dust: null,
 };
 
@@ -18,7 +21,7 @@ const network =
 
 export default function App() {
   const [wallet, setWallet] = useState<WalletState>(initialWallet);
-  const [signals, setSignals] = useState<string[]>([]);
+  const [signals, setSignals] = useState<AtlasSignal[]>([]);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<{
     type: 'success' | 'error';
@@ -98,12 +101,15 @@ export default function App() {
             {wallet.connected && (
               <TransferForm
                 api={wallet.api}
-                defaultAddress={wallet.unshieldedAddress}
-                onSuccess={(txId) => {
-                  setSignals((current) => [txId, ...current].slice(0, 6));
+                unshieldedAddress={wallet.unshieldedAddress}
+                shieldedAddress={wallet.shieldedAddress}
+                onSuccess={(txId, kind) => {
+                  setSignals((current) =>
+                    [{ id: txId, kind }, ...current].slice(0, 6),
+                  );
                   setStatus({
                     type: 'success',
-                    message: `Signal broadcast. Reference: ${txId}`,
+                    message: `${kind === 'shielded' ? 'Private' : 'Public'} signal broadcast. Reference: ${txId}`,
                   });
                 }}
                 onError={(message) => setStatus({ type: 'error', message })}

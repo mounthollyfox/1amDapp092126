@@ -1,4 +1,13 @@
-import { nativeNightBalance, type WalletState } from './wallet';
+import {
+  nativeNightBalance,
+  type TransferKind,
+  type WalletState,
+} from './wallet';
+
+export interface AtlasSignal {
+  id: string;
+  kind: TransferKind;
+}
 
 export interface AtlasPoint {
   x: number;
@@ -7,7 +16,7 @@ export interface AtlasPoint {
 
 export interface AtlasStar extends AtlasPoint {
   id: string;
-  kind: 'anchor' | 'token' | 'signal';
+  kind: 'anchor' | 'token' | 'signal' | 'shieldedSignal';
   label: string;
   opacity: number;
   radius: number;
@@ -82,7 +91,7 @@ export const maskAddress = (address: string): string => {
 
 export const buildAtlas = (
   wallet: WalletState,
-  signals: string[],
+  signals: AtlasSignal[],
 ): AtlasModel => {
   const seedSource =
     wallet.unshieldedAddress || wallet.networkId || 'night-atlas';
@@ -107,7 +116,8 @@ export const buildAtlas = (
     const distance = index === 0 ? 0 : 14 + random() * 22;
     const x = clamp(50 + Math.cos(angle) * distance, 8, 92);
     const y = clamp(36 + Math.sin(angle) * distance * 0.62, 8, 64);
-    const kind = index === 0 ? 'anchor' : index <= tokenIds.length ? 'token' : 'anchor';
+    const kind =
+      index === 0 ? 'anchor' : index <= tokenIds.length ? 'token' : 'anchor';
 
     return {
       id: `star-${index}`,
@@ -121,11 +131,13 @@ export const buildAtlas = (
   });
 
   const signalStars = signals.slice(0, 6).map((signal, index) => {
-    const signalRandom = createRandom(hashSeed(signal));
+    const signalRandom = createRandom(hashSeed(signal.id));
+    const shielded = signal.kind === 'shielded';
+
     return {
-      id: `signal-${signal}-${index}`,
-      kind: 'signal' as const,
-      label: `S-${index + 1}`,
+      id: `signal-${signal.id}-${index}`,
+      kind: shielded ? ('shieldedSignal' as const) : ('signal' as const),
+      label: `${shielded ? 'SHD' : 'PUB'}-${index + 1}`,
       opacity: 0.95,
       radius: round(1.8 + signalRandom() * 1.4),
       x: round(12 + signalRandom() * 76),
@@ -144,7 +156,7 @@ export const buildAtlas = (
     links.push({
       from: stars[index % stars.length],
       to: star,
-      opacity: 0.48,
+      opacity: star.kind === 'shieldedSignal' ? 0.34 : 0.48,
     });
   });
 

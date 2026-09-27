@@ -1,6 +1,11 @@
 import { Fingerprint, Loader2, Unlink, Wallet } from 'lucide-react';
 import { atlasCallsign, maskAddress } from '../lib/atlas';
-import { formatNight, nativeNightBalance, type WalletState } from '../lib/wallet';
+import {
+  formatNight,
+  nativeNightBalance,
+  shieldedNightBalance,
+  type WalletState,
+} from '../lib/wallet';
 
 interface WalletCardProps {
   wallet: WalletState;
@@ -15,7 +20,8 @@ export const WalletCard = ({
   onDisconnect,
   loading = false,
 }: WalletCardProps) => {
-  const balance = nativeNightBalance(wallet.unshieldedBalances);
+  const publicNight = nativeNightBalance(wallet.unshieldedBalances);
+  const privateNight = shieldedNightBalance(wallet.shieldedBalances);
   const seed = wallet.unshieldedAddress || wallet.networkId || 'night-atlas';
 
   return (
@@ -43,20 +49,32 @@ export const WalletCard = ({
               <p className="mt-2 font-mono text-lg font-semibold text-white">
                 {atlasCallsign(seed)}
               </p>
-              <p className="mt-1 break-all font-mono text-xs text-slate-400">
-                {maskAddress(wallet.unshieldedAddress)}
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-2xl bg-slate-950/80 p-4">
-                <p className="text-xs text-slate-500">Unshielded NIGHT</p>
-                <p className="mt-1 text-xl font-semibold text-white">
-                  {formatNight(balance)} N
+              <div className="mt-3 space-y-1 font-mono text-xs text-slate-400">
+                <p>Public: {maskAddress(wallet.unshieldedAddress)}</p>
+                <p>
+                  Private:{' '}
+                  {wallet.shieldedAddress
+                    ? maskAddress(wallet.shieldedAddress)
+                    : 'not exposed by wallet'}
                 </p>
               </div>
-              <div className="rounded-2xl bg-slate-950/80 p-4">
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-2xl bg-slate-950/80 p-3">
+                <p className="text-xs text-slate-500">Public NIGHT</p>
+                <p className="mt-1 text-lg font-semibold text-white">
+                  {formatNight(publicNight)}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-slate-950/80 p-3">
+                <p className="text-xs text-slate-500">Private NIGHT</p>
+                <p className="mt-1 text-lg font-semibold text-teal-200">
+                  {formatNight(privateNight)}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-slate-950/80 p-3">
                 <p className="text-xs text-slate-500">DUST</p>
-                <p className="mt-1 text-xl font-semibold text-white">
+                <p className="mt-1 text-lg font-semibold text-white">
                   {wallet.dust
                     ? (Number(wallet.dust.balance) / 1e15).toFixed(4)
                     : '0.0000'}
@@ -67,7 +85,7 @@ export const WalletCard = ({
         ) : (
           <p className="rounded-2xl border border-dashed border-slate-800 bg-slate-950/50 p-4 text-sm leading-6 text-slate-400">
             Connect a 1AM wallet to derive a local constellation from your
-            address, balances, and broadcast signals.
+            address, balances, and public or private signals.
           </p>
         )}
       </div>

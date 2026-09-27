@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Fingerprint, Moon, Radio } from 'lucide-react';
-import { buildAtlas } from '../lib/atlas';
+import { buildAtlas, type AtlasSignal } from '../lib/atlas';
 import {
   formatNight,
   nativeNightBalance,
@@ -8,12 +8,15 @@ import {
 } from '../lib/wallet';
 
 interface AtlasMapProps {
-  signals: string[];
+  signals: AtlasSignal[];
   wallet: WalletState;
 }
 
-const starColor = (kind: 'anchor' | 'signal' | 'token'): string => {
+const starColor = (
+  kind: 'anchor' | 'signal' | 'shieldedSignal' | 'token',
+): string => {
   if (kind === 'signal') return '#f0abfc';
+  if (kind === 'shieldedSignal') return '#5eead4';
   if (kind === 'token') return '#67e8f9';
   return '#c7d2fe';
 };
@@ -100,14 +103,14 @@ export const AtlasMap = ({ signals, wallet }: AtlasMapProps) => {
                   strokeWidth="0.18"
                 />
               )}
-              {star.kind === 'signal' && (
+              {(star.kind === 'signal' || star.kind === 'shieldedSignal') && (
                 <circle
                   cx={star.x}
                   cy={star.y}
                   fill="none"
                   opacity="0.5"
                   r={star.radius + 2.4}
-                  stroke="#f0abfc"
+                  stroke={starColor(star.kind)}
                   strokeWidth="0.18"
                 >
                   <animate
@@ -160,7 +163,19 @@ export const AtlasMap = ({ signals, wallet }: AtlasMapProps) => {
         )}
       </div>
 
-      <footer className="relative mt-5 grid grid-cols-3 gap-3 text-sm">
+      <div className="relative mt-3 flex flex-wrap gap-3 text-xs text-slate-400">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-indigo-300" /> Wallet field
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-fuchsia-300" /> Public signal
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-teal-300" /> Shielded signal
+        </span>
+      </div>
+
+      <footer className="relative mt-4 grid grid-cols-3 gap-3 text-sm">
         <div className="rounded-xl border border-slate-800/80 bg-slate-900/60 p-3">
           <p className="text-xs text-slate-500">NIGHT</p>
           <p className="mt-1 font-semibold text-white">{formatNight(night)}</p>
